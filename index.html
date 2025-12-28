@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản Lý Sinh Viên</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .error { color: red; font-size: 0.9em; }
+        .page-info { margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">Quản Lý Sinh Viên</h1>
+
+        <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#studentModal" onclick="openAddModal()">
+            Thêm Sinh Viên
+        </button>
+
+        <!-- Bảng sinh viên -->
+        <table class="table table-striped table-bordered" id="studentTable">
+            <thead class="table-dark">
+                <tr>
+                    <th>Mã SV</th>
+                    <th>Họ</th>
+                    <th>Tên</th>
+                    <th>Email</th>
+                    <th>Ngày Sinh</th>
+                    <th>Quê Quán</th>
+                    <th>Điểm Toán</th>
+                    <th>Điểm Văn</th>
+                    <th>Điểm Anh</th>
+                    <th>Hành Động</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <!-- Phân trang -->
+        <div class="d-flex justify-content-between align-items-center page-info">
+            <div id="pageInfo">Hiển thị 1-10 của <span id="totalRecords">0</span> sinh viên</div>
+            <nav>
+                <ul class="pagination" id="pagination"></ul>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Modal Thêm/Sửa -->
+    <div class="modal fade" id="studentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Thêm Sinh Viên</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="studentForm" novalidate>
+                        <input type="hidden" id="editIndex">
+
+                        <div class="mb-3">
+                            <label class="form-label">Mã Số Sinh Viên <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="mssv" required maxlength="20">
+                            <div class="error" id="mssvError"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Họ <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="ho" required>
+                            <div class="error" id="hoError"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Tên <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="ten" required>
+                            <div class="error" id="tenError"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email">
+                            <div class="error" id="emailError"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Ngày Sinh</label>
+                            <input type="date" class="form-control" id="ngaysinh">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Quê Quán</label>
+                            <input type="text" class="form-control" id="quequan">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Điểm Toán (0-10)</label>
+                            <input type="number" class="form-control" id="diemtoan" min="0" max="10" step="0.1">
+                            <div class="error" id="diemtoanError"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Điểm Văn (0-10)</label>
+                            <input type="number" class="form-control" id="diemvan" min="0" max="10" step="0.1">
+                            <div class="error" id="diemvanError"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Điểm Tiếng Anh (0-10)</label>
+                            <input type="number" class="form-control" id="diemanh" min="0" max="10" step="0.1">
+                            <div class="error" id="diemanhError"></div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="button" class="btn btn-primary" id="saveBtn">Lưu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        const PAGE_SIZE = 10;
+        let currentPage = 1;
+        let students = [];
+        let editingIndex = -1;
+
+        // ==================== CÁC HÀM DỄ THAY BẰNG API ====================
+
+        // Lấy danh sách sinh viên (thay bằng fetch API thực)
+        async function fetchStudents() {
+            // TODO: Khi dùng API thật, thay bằng:
+            // const res = await fetch('/api/students');
+            // return await res.json();
+
+            // Hiện tại dùng dữ liệu giả
+            if (students.length === 0) {
+                generateFakeStudents(100);
+            }
+            return students;
+        }
+
+        // Thêm sinh viên mới
+        async function addStudent(student) {
+            // TODO: fetch('/api/students', { method: 'POST', body: JSON.stringify(student) })
+            students.push(student);
+            return student;
+        }
+
+        // Cập nhật sinh viên
+        async function updateStudent(index, student) {
+            // TODO: fetch(`/api/students/${student.mssv}`, { method: 'PUT', ... })
+            students[index] = student;
+            return student;
+        }
+
+        // Xóa sinh viên
+        async function deleteStudent(index) {
+            // TODO: fetch(`/api/students/${students[index].mssv}`, { method: 'DELETE' })
+            students.splice(index, 1);
+        }
+
+        // ==============================================================
+
+        // Tạo dữ liệu giả
+        function generateFakeStudents(count) {
+            const hoList = ['Nguyễn', 'Trần', 'Lê', 'Phạm', 'Hoàng', 'Huỳnh', 'Vũ', 'Đặng', 'Bùi', 'Đỗ'];
+            const tenList = ['Anh', 'Bình', 'Cường', 'Dũng', 'Hương', 'Lan', 'Minh', 'Nam', 'Oanh', 'Phúc'];
+            const quequanList = ['Hà Nội', 'TP.HCM', 'Đà Nẵng', 'Hải Phòng', 'Cần Thơ', 'Huế', 'Nha Trang', 'Bình Dương'];
+
+            for (let i = 1; i <= count; i++) {
+                students.push({
+                    mssv: 'SV' + String(i).padStart(3, '0'),
+                    ho: hoList[Math.floor(Math.random() * hoList.length)],
+                    ten: tenList[Math.floor(Math.random() * tenList.length)],
+                    email: `sv${i}@example.com`,
+                    ngaysinh: `200${Math.floor(Math.random() * 5)}-0${Math.floor(Math.random() * 9)+1}-${Math.floor(Math.random() * 2)+1}${Math.floor(Math.random() * 8)+1}`,
+                    quequan: quequanList[Math.floor(Math.random() * quequanList.length)],
+                    diemtoan: (Math.random() * 10).toFixed(1),
+                    diemvan: (Math.random() * 10).toFixed(1),
+                    diemanh: (Math.random() * 10).toFixed(1)
+                });
+            }
+        }
+
+        // Render bảng theo trang
+        async function renderTable(page = 1) {
+            currentPage = page;
+            await fetchStudents(); // có thể gọi API ở đây
+
+            const start = (page - 1) * PAGE_SIZE;
+            const end = start + PAGE_SIZE;
+            const pageStudents = students.slice(start, end);
+
+            const tbody = $('#studentTable tbody');
+            tbody.empty();
+
+            pageStudents.forEach((student, idx) => {
+                const globalIndex = start + idx;
+                tbody.append(`
+                    <tr>
+                        <td>${student.mssv || ''}</td>
+                        <td>${student.ho || ''}</td>
+                        <td>${student.ten || ''}</td>
+                        <td>${student.email || ''}</td>
+                        <td>${student.ngaysinh || ''}</td>
+                        <td>${student.quequan || ''}</td>
+                        <td>${student.diemtoan || ''}</td>
+                        <td>${student.diemvan || ''}</td>
+                        <td>${student.diemanh || ''}</td>
+                        <td>
+                            <button class="btn btn-sm btn-warning" onclick="openEditModal(${globalIndex})">Sửa</button>
+                            <button class="btn btn-sm btn-danger" onclick="confirmDelete(${globalIndex})">Xóa</button>
+                        </td>
+                    </tr>
+                `);
+            });
+
+            updatePagination();
+            $('#totalRecords').text(students.length);
+            $('#pageInfo').text(`Hiển thị ${start + 1}-${Math.min(end, students.length)} của ${students.length} sinh viên`);
+        }
+
+        // Phân trang
+        function updatePagination() {
+            const totalPages = Math.ceil(students.length / PAGE_SIZE);
+            const pagination = $('#pagination');
+            pagination.empty();
+
+            // Previous
+            pagination.append(`
+                <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="renderTable(${currentPage - 1}); return false;">«</a>
+                </li>
+            `);
+
+            // Các trang
+            for (let i = 1; i <= totalPages; i++) {
+                pagination.append(`
+                    <li class="page-item ${i === currentPage ? 'active' : ''}">
+                        <a class="page-link" href="#" onclick="renderTable(${i}); return false;">${i}</a>
+                    </li>
+                `);
+            }
+
+            // Next
+            pagination.append(`
+                <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="renderTable(${currentPage + 1}); return false;">»</a>
+                </li>
+            `);
+        }
+
+        // Mở modal thêm mới
+        function openAddModal() {
+            editingIndex = -1;
+            $('#modalTitle').text('Thêm Sinh Viên');
+            $('#studentForm')[0].reset();
+            clearErrors();
+            $('#saveBtn').off('click').on('click', saveStudent);
+        }
+
+        // Mở modal sửa
+        function openEditModal(index) {
+            editingIndex = index;
+            const student = students[index];
+
+            $('#mssv').val(student.mssv);
+            $('#ho').val(student.ho);
+            $('#ten').val(student.ten);
+            $('#email').val(student.email);
+            $('#ngaysinh').val(student.ngaysinh);
+            $('#quequan').val(student.quequan);
+            $('#diemtoan').val(student.diemtoan);
+            $('#diemvan').val(student.diemvan);
+            $('#diemanh').val(student.diemanh);
+
+            $('#modalTitle').text('Sửa Sinh Viên');
+            clearErrors();
+            $('#saveBtn').off('click').on('click', saveStudent);
+
+            $('#studentModal').modal('show');
+        }
+
+        // Xóa
+        async function confirmDelete(index) {
+            if (confirm('Bạn có chắc chắn muốn xóa sinh viên này?')) {
+                await deleteStudent(index);
+                await renderTable(currentPage);
+            }
+        }
+
+        // Validate và lưu
+        async function saveStudent() {
+            clearErrors();
+
+            const mssv = $('#mssv').val().trim();
+            const ho = $('#ho').val().trim();
+            const ten = $('#ten').val().trim();
+            const email = $('#email').val().trim();
+            const diemtoan = $('#diemtoan').val();
+            const diemvan = $('#diemvan').val();
+            const diemanh = $('#diemanh').val();
+
+            let valid = true;
+
+            if (!mssv) {
+                showError('mssv', 'Mã sinh viên là bắt buộc');
+                valid = false;
+            } else if (editingIndex === -1 && students.some(s => s.mssv === mssv)) {
+                showError('mssv', 'Mã sinh viên đã tồn tại');
+                valid = false;
+            }
+
+            if (!ho) {
+                showError('ho', 'Họ là bắt buộc');
+                valid = false;
+            }
+
+            if (!ten) {
+                showError('ten', 'Tên là bắt buộc');
+                valid = false;
+            }
+
+            if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+                showError('email', 'Email không hợp lệ');
+                valid = false;
+            }
+
+            if (diemtoan && (diemtoan < 0 || diemtoan > 10)) {
+                showError('diemtoan', 'Điểm Toán phải từ 0 đến 10');
+                valid = false;
+            }
+            if (diemvan && (diemvan < 0 || diemvan > 10)) {
+                showError('diemvan', 'Điểm Văn phải từ 0 đến 10');
+                valid = false;
+            }
+            if (diemanh && (diemanh < 0 || diemanh > 10)) {
+                showError('diemanh', 'Điểm Anh phải từ 0 đến 10');
+                valid = false;
+            }
+
+            if (!valid) return;
+
+            const student = {
+                mssv, ho, ten, email,
+                ngaysinh: $('#ngaysinh').val(),
+                quequan: $('#quequan').val(),
+                diemtoan: diemtoan || '',
+                diemvan: diemvan || '',
+                diemanh: diemanh || ''
+            };
+
+            if (editingIndex === -1) {
+                await addStudent(student);
+            } else {
+                await updateStudent(editingIndex, student);
+            }
+
+            $('#studentModal').modal('hide');
+            await renderTable(currentPage);
+        }
+
+        function showError(field, message) {
+            $(`#${field}Error`).text(message);
+        }
+
+        function clearErrors() {
+            $('.error').text('');
+        }
+
+        // Khởi động
+        $(document).ready(async () => {
+            await renderTable(1);
+            $('#saveBtn').on('click', saveStudent);
+        });
+    </script>
+</body>
+</html>
